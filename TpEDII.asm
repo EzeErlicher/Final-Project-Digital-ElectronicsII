@@ -116,13 +116,29 @@ MAIN
      ;BSF     ADCON0,GO   ;ADC inicia conversion
      MOVLW .20
      MOVWF COUNTER_TMR0
-;     MOVLW .10
-;     MOVWF COUNTER_TMR1
+     MOVLW .10
+     MOVWF COUNTER_TMR1
      MOVLW .61
      MOVWF TMR0
-;     CLRF  TMR1L        enable TMR1 (TMR10N)
-;     CLRF  TMR1H
+     CLRF  TMR1L       ;remember to enable TMR1 (TMR10N)
+     CLRF  TMR1H
      CLRF  STATE
+     
+;---------------------RUTINA DECISIÓN DE ESTADO-------------------------------     
+State_Decision     
+     MOVLW .0
+     SUBWF STATE,W
+     BTFSC STATUS,Z
+     GOTO  Display_Date
+     MOVLW .1
+     SUBWF STATE,W
+     BTFSC STATUS,Z
+     GOTO  Display_Patient
+     MOVLW .2
+     SUBWF STATE,W
+     BTFSC STATUS,Z
+     GOTO  Display_Clock
+     GOTO  $    ;GOTO Display_ADC
      
 ;----------------------RUTINA DISPLAY DE LA FECHA-----------------------------     
  
@@ -169,12 +185,18 @@ Display_Date
      CALL  DELAY_3ms
      BSF   PORTC,RC5
      
-State_Decision     
-     MOVLW .0
-     SUBWF STATE
-     BTFSC STATUS,Z
-     GOTO  Display_Date
-     GOTO  Display_Clock
+     GOTO State_Decision
+
+;----------------------RUTINA DISPLAY PACIENTE/CONSULTORIO--------------------  
+Display_Patient
+     
+     BCF   PORTC,RC0
+     MOVLW .9
+     CALL  TO_7SEG
+     MOVWF PORTD
+     BSF   PORTC,RC0
+     
+     GOTO  State_Decision
      
 ;----------------------RUTINA DISPLAY DEL CLOCK------------------------------- 
      
@@ -222,28 +244,8 @@ Display_Clock
      CALL  DELAY_3ms
      BSF   PORTC,RC5
      
-     MOVLW .0
-     SUBWF STATE
-     BTFSC STATUS,Z
-     GOTO  Display_Date
-     GOTO  Display_Clock
+     GOTO State_Decision
       
-;----------------------------------------------------------------------------     
-Display_testNumber
-     
-     BCF   PORTC,RC0
-     MOVLW .9
-     CALL  TO_7SEG
-     MOVWF PORTD
-     BSF   PORTC,RC0
-     
-     MOVLW .0
-     SUBWF STATE
-     BTFSC STATUS,Z
-     GOTO  Display_Clock
-     GOTO  Display_testNumber
-     GOTO  PortB_ISR
-    
 ;----------------------*Fin programa Principal*--------------------------------
      
       ORG 0x00F0
@@ -278,7 +280,7 @@ DELAY_3ms
 	DECFSZ	COUNTER2, F	
 	GOTO	L4
 	RETURN
-	
+;----------------------------------------------------------------------------	
 	ORG 0x0110
 Sampling_Delay
 	
@@ -290,7 +292,7 @@ Sampling_Delay
 	RETURN
 	
      
-;------------------------------------------------------------	
+;---------------------------------------------------------------------------	
      ORG 0x0120
 INTERRUPT
     
@@ -299,17 +301,17 @@ INTERRUPT
     SWAPF   STATUS,W
     MOVWF   STATUS_TEMP
     
+    BANKSEL PIR1
+    BTFSC   PIR1,TMR1IF
+    GOTO    TMR1_ISR
     BANKSEL INTCON
+    BTFSC   INTCON,T0IF
+    GOTO    TMR0_ISR
     BTFSC   INTCON,RBIF
     GOTO    PortB_ISR
     BTFSC   INTCON,INTF
     GOTO    INT_ISR
-    GOTO    TMR0_ISR
     
-;    BANKSEL PIR1
-;    BTFSC   PIR1,TMR1IF
-;    GOTO    TMR1_ISR
-;    GOTO    TMR0_ISR
 
 END_INTERRUPT
 ;Recuperación del contexto y retorno a MAIN
@@ -319,27 +321,35 @@ END_INTERRUPT
     SWAPF W_TEMP,W
     RETFIE
     
-;---------------------SUBRUTINA INTERRUPCIÓN PORTB-----------------------------
-    ORG 0x0130
+;---------------------SUBRUTINA INTERRUPCIÓN INT/RB0-----------------------------
+      
+    ;Se habilitan TMR0 Y TMR1
+    ORG 0x0135
 INT_ISR
-    MOVLW   .2
+    MOVLW   .1
     MOVWF   STATE
-    BANKSEL INTCON
-    BSF     INTCON,T0IE
+    
+    BANKSEL PIE1
+    BSF     PIE1,TMR1IE
+    BANKSEL T1CON
+    BSF     T1CON,TMR1ON
     
     BANKSEL INTCON
+    BSF     INTCON,T0IE
+   
+  
     BCF     INTCON,INTF
     GOTO    END_INTERRUPT
     
-    
-    ORG 0x0140
+;---------------------SUBRUTINA INTERRUPCIÓN PORTB-----------------------------    
+    ORG 0x0145
 PortB_ISR
     
     BANKSEL PORTA
     MOVF    PORTB,F
     BTFSS   PORTB,RB1
-    GOTO    RB1_ISR
-    BTFSS   PORTB,RB2
+    GOTO    RB1_ISR           ;Se identifica en que puerto ocurre un flanco
+    BTFSS   PORTB,RB2         ;descendente
     GOTO    RB2_ISR
     BTFSS   PORTB,RB3
     GOTO    RB3_ISR
@@ -480,7 +490,7 @@ PortB_ISR_END
 ;    GOTO    END_INTERRUPT
 ;    
     
-;--------------------------SUBRUTINA TMR0--------------------------------------     
+;----------------------SUBRUTINA INTERRUPCIÓN TMR1---------------------------     
     
     ORG 0x019A
 TMR1_ISR
@@ -492,11 +502,39 @@ TMR1_ISR
     GOTO    END_TMR1_ISR
     MOVLW   .10
     MOVWF   COUNTER_TMR1
-    INCF    STATE
+    
+    MOVLW   .1
+    SUBWF   STATE,W
+    BTFSC   STATUS,Z
+    GOTO    EQUALS_1
+    MOVLW   .0
+    SUBWF   STATE,W
+    BTFSC   STATUS,Z
+    GOTO    EQUALS_0
     MOVLW   .2
     SUBWF   STATE,W
     BTFSC   STATUS,Z
-    CLRF    STATE
+    GOTO    EQUALS_2
+    MOVLW   .3
+    SUBWF   STATE,W
+    BTFSC   STATUS,Z
+    GOTO    EQUALS_3
+    
+EQUALS_0
+    MOVLW  .2
+    MOVWF  STATE
+    GOTO   END_TMR1_ISR
+
+EQUALS_1
+    CLRF  STATE
+    GOTO  END_TMR1_ISR
+    
+EQUALS_2
+    INCF  STATE
+    GOTO  END_TMR1_ISR
+    
+EQUALS_3
+    CLRF STATE
     
 END_TMR1_ISR    
     BANKSEL PIR1
@@ -504,7 +542,7 @@ END_TMR1_ISR
     GOTO    END_INTERRUPT
     
 ;------------------------------------------------------------------------------    
-   ORG 0x0200
+   ORG 0x0210
 TMR0_ISR
     
     MOVLW .61
