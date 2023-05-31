@@ -30,6 +30,10 @@ STATE        EQU 0x7F
 
 	
 ADC_VAL1 EQU 0xA0
+Digit4   EQU 0xA1 
+Digit3   EQU 0xA2
+Digit2   EQU 0xA3
+Digit1   EQU 0xA4
 
 ;Variables para manejo de la fecha
 Day2     EQU 0x20
@@ -77,7 +81,7 @@ MAIN
      BCF     PIR1,TMR1IF
      MOVLW   B'00110000'   ;(TMR1 always counting,Preescaler=8,internal clock,TMR1ON=0 Disabled)
      MOVWF   T1CON
-     MOVLW   B'01000001'   ;(Fosc/8 ,Analog Channel=AN0,GO/DONE=0,ADON=1)
+     MOVLW   B'01000000'   ;(Fosc/8 ,Analog Channel=AN0,GO/DONE=0,ADON=0)
      MOVWF   ADCON0
      BANKSEL ADCON1
      MOVLW   B'10000000'   ;(ADFM=1 right justified ,VCFG1=0 Vss,VCFG0=0 Vdd)
@@ -112,16 +116,16 @@ MAIN
      BANKSEL PORTC
      MOVLW B'11111111'
      MOVWF PORTC
-     ;BANKSEL ADCON0
-     ;BSF     ADCON0,GO   ;ADC inicia conversion
+     
      MOVLW .20
      MOVWF COUNTER_TMR0
      MOVLW .10
      MOVWF COUNTER_TMR1
      MOVLW .61
      MOVWF TMR0
-     CLRF  TMR1L       ;remember to enable TMR1 (TMR10N)
+     CLRF  TMR1L       
      CLRF  TMR1H
+     
      CLRF  STATE
      
 ;---------------------RUTINA DECISIÓN DE ESTADO-------------------------------     
@@ -138,7 +142,7 @@ State_Decision
      SUBWF STATE,W
      BTFSC STATUS,Z
      GOTO  Display_Clock
-     GOTO  $    ;GOTO Display_ADC
+     GOTO  Display_ADC   
      
 ;----------------------RUTINA DISPLAY DE LA FECHA-----------------------------     
  
@@ -261,14 +265,13 @@ TO_7SEG
      RETLW B'10000111'
      RETLW B'11111111'
      RETLW B'11100111' ;9
-     RETLW B'1110011'  ;P
-     RETLW B'1110111'  ;A
-     RETLW B'1111001'  ;E
+     RETLW B'11110011' ;P
+     RETLW B'11110111' ;A
+     RETLW B'11111001' ;E
      
 ;-----------------------------------------------------------------------------
      ORG  0x0100
 DELAY_3ms
-     
         MOVLW	.4		
         MOVWF	COUNTER2			
     L4  
@@ -311,6 +314,8 @@ INTERRUPT
     GOTO    PortB_ISR
     BTFSC   INTCON,INTF
     GOTO    INT_ISR
+    BTFSC   PIR1,ADIF
+    GOTO    ADC_ISR
     
 
 END_INTERRUPT
@@ -324,7 +329,7 @@ END_INTERRUPT
 ;---------------------SUBRUTINA INTERRUPCIÓN INT/RB0-----------------------------
       
     ;Se habilitan TMR0 Y TMR1
-    ORG 0x0135
+    ORG 0x0136
 INT_ISR
     MOVLW   .1
     MOVWF   STATE
@@ -450,49 +455,48 @@ PortB_ISR_END
     
     
     
-;--------------------------SUBRUTINA ADC---------------------------------------   
-;    ORG 0x0110
-;ADC_ISR
-;    BANKSEL ADRESL
-;    MOVF    ADRESL,W
-;    MOVWF   ADC_VAL1
-;    BCF     STATUS,C
-;    RRF     ADC_VAL1,F
-;    MOVLW   .38
-;    SUBWF   ADC_VAL1
-;    BTFSC   STATUS,C
-;    GOTO    FEVER
-;    GOTO    NOT_FEVER
-;    
-;FEVER
-;    CLRF    Second2
-;    CLRF    Second1
-;    CLRF    Minute2
-;    CLRF    Minute1
-;    GOTO    END_ADC_ISR
-;    
-;NOT_FEVER
-;    MOVLW   .12
-;    MOVWF   Second2
-;    MOVLW   .5
-;    MOVWF   Second1
-;    MOVLW   .11
-;    MOVWF   Minute2
-;    MOVLW   .10
-;    MOVWF   Minute1
-;    
-;END_ADC_ISR    
-;    BANKSEL PIR1
-;    BCF     PIR1,ADIF
-;    CALL    Sampling_Delay
-;    ;BANKSEL ADCON0
-;    BSF     ADCON0,GO
-;    GOTO    END_INTERRUPT
-;    
+;------------------------SUBRUTINA INTERRUPCIÓN ADC----------------------------
+    ORG 0x01B0
+ADC_ISR
+    BANKSEL ADRESL
+    MOVF    ADRESL,W
+    MOVWF   ADC_VAL1
+    BCF     STATUS,C
+    RRF     ADC_VAL1,F
+    MOVLW   .38
+    SUBWF   ADC_VAL1,W
+    BTFSC   STATUS,C
+    GOTO    FEVER
+    GOTO    NOT_FEVER
+    
+FEVER
+    CLRF    Digit4
+    CLRF    Digit3          
+    CLRF    Digit2
+    CLRF    Digit1
+    GOTO    END_ADC_ISR
+    
+NOT_FEVER
+    MOVLW   .12
+    MOVWF   Digit4
+    MOVLW   .5
+    MOVWF   Digit3
+    MOVLW   .11
+    MOVWF   Digit2
+    MOVLW   .10
+    MOVWF   Digit1
+    
+END_ADC_ISR    
+    BANKSEL PIR1
+    BCF     PIR1,ADIF
+    CALL    Sampling_Delay
+    BSF     ADCON0,GO
+    GOTO    END_INTERRUPT
+    
     
 ;----------------------SUBRUTINA INTERRUPCIÓN TMR1---------------------------     
     
-    ORG 0x019A
+    ORG 0x210
 TMR1_ISR
     
     BANKSEL TMR1
@@ -530,11 +534,18 @@ EQUALS_1
     GOTO  END_TMR1_ISR
     
 EQUALS_2
-    INCF  STATE
-    GOTO  END_TMR1_ISR
+    INCF    STATE
+    BANKSEL ADCON0
+    BSF     ADCON0,ADON            ;Se habilita ADC
+    CALL    Sampling_Delay
+    BSF     ADCON0,GO
+    GOTO    END_TMR1_ISR
     
 EQUALS_3
-    CLRF STATE
+    MOVLW   .1
+    MOVWF   STATE
+    BANKSEL ADCON0
+    BCF     ADCON0,ADON            ;Se deshabilita ADC
     
 END_TMR1_ISR    
     BANKSEL PIR1
@@ -542,7 +553,7 @@ END_TMR1_ISR
     GOTO    END_INTERRUPT
     
 ;------------------------------------------------------------------------------    
-   ORG 0x0210
+   ORG 0x0240
 TMR0_ISR
     
     MOVLW .61
@@ -603,6 +614,54 @@ Reset_24hs
 END_TMR0_ISR
     BCF   INTCON,T0IF  
     GOTO  END_INTERRUPT
+
+;----------------------Display ADC-------------------------------------------    
+    ORG 0x0270
+Display_ADC
+    
+    BANKSEL PORTC
+    BCF   PORTC,RC0
+    BANKSEL ADRESL
+    MOVF  Digit4,w
+    CALL  TO_7SEG
+    BANKSEL PORTD
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC0
+     ;-----------------------------------------------------
+    BANKSEL PORTC
+    BCF   PORTC,RC1
+    BANKSEL ADRESL
+    MOVF  Digit3,w
+    CALL  TO_7SEG
+    BANKSEL PORTD
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC1
+     ;-----------------------------------------------------
+    BANKSEL PORTC
+    BCF   PORTC,RC2
+    BANKSEL ADRESL
+    MOVF  Digit2,w
+    CALL  TO_7SEG
+    BANKSEL PORTD
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC2
+    ;-----------------------------------------------------
+    BANKSEL PORTC
+    BCF   PORTC,RC3
+    BANKSEL ADRESL
+    MOVF  Digit1,w
+    CALL  TO_7SEG
+    BANKSEL PORTD
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC3
+    
+    GOTO State_Decision
+    
+    
     END
 
 ;------------------------------------------------------------------------------
