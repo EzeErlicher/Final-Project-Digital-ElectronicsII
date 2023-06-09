@@ -45,6 +45,14 @@ Months   EQU 0x25
 Year2    EQU 0x26
 Year1    EQU 0x27
 Years    EQU 0x28
+
+;Variables para manejo consultorio y numero paciente
+Patient3 EQU 0x29
+Patient2 EQU 0x2A
+Patient1 EQU 0x2B
+Consult3 EQU 0x2C
+Consult2 EQU 0x2D
+Consult1 EQU 0x2E
    
  
      ORG 0x0000
@@ -73,9 +81,9 @@ MAIN
      BANKSEL PIE1
      BSF     PIE1,ADIE
      BSF     PIE1,TMR1IE
-     MOVLW   B'00011110'
-     MOVWF   WPUB          ; habilitación de resistencias de PULL-UP en RB4-RB1
-     MOVWF   IOCB          ; habilitación de interupcion por cambio de nivel en RB4-RB1
+     MOVLW   B'00001111'
+     MOVWF   WPUB          ; habilitación de resistencias de PULL-UP en RB3-RB0
+     MOVWF   IOCB          ; habilitación de interupcion por cambio de nivel en RB3-RB1
      BANKSEL PIR1
      BCF     PIR1,ADIF
      BCF     PIR1,TMR1IF
@@ -144,8 +152,60 @@ State_Decision
      GOTO  Display_Clock
      GOTO  Display_ADC   
      
+     
+;--------------------------DELAYS---------------------------------------------
+     
+          ORG 0x0060
+TO_7SEG
+     ADDWF   PCL,f
+     RETLW B'10111111' ;0
+     RETLW B'10000110'
+     RETLW B'11011011'
+     RETLW B'11001111'
+     RETLW B'11100110'         
+     RETLW B'11101101'
+     RETLW B'11111101'
+     RETLW B'10000111'
+     RETLW B'11111111'
+     RETLW B'11100111' ;9
+     RETLW B'11110011' ;P
+     RETLW B'11110111' ;A
+     RETLW B'11111001' ;E
+     
+;-----------------------------------------------------------------------------
+     ORG  0x070
+DELAY_3ms
+        MOVLW	.4		
+        MOVWF	COUNTER2			
+    L4  
+	MOVLW	.255
+	MOVWF	COUNTER1
+    L3  
+	DECFSZ	COUNTER1, F	
+	GOTO	L3	
+	DECFSZ	COUNTER2, F	
+	GOTO	L4
+	RETURN
+	
+;-----------------------------------------------------------------------------	
+     	ORG 0x080
+Sampling_Delay
+	
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	RETURN
+	  
 ;----------------------RUTINA DISPLAY DE LA FECHA-----------------------------     
- 
+     ORG   0x008F
 Display_Date     
      BCF   PORTC,RC0
      MOVF  Year2,w
@@ -195,10 +255,46 @@ Display_Date
 Display_Patient
      
      BCF   PORTC,RC0
-     MOVLW .9
+     MOVF  Patient3,w
      CALL  TO_7SEG
      MOVWF PORTD
+     CALL  DELAY_3ms
      BSF   PORTC,RC0
+     ;-----------------------------------------------------
+     BCF   PORTC,RC1
+     MOVF  Patient2,w
+     CALL  TO_7SEG
+     MOVWF PORTD
+     CALL  DELAY_3ms
+     BSF   PORTC,RC1
+     ;-----------------------------------------------------
+     BCF   PORTC,RC2
+     MOVF  Patient1,w
+     CALL  TO_7SEG
+     MOVWF PORTD
+     CALL  DELAY_3ms
+     BSF   PORTC,RC2
+     ;-----------------------------------------------------
+     BCF   PORTC,RC3
+     MOVF  Consult3,w
+     CALL  TO_7SEG
+     MOVWF PORTD
+     CALL  DELAY_3ms
+     BSF   PORTC,RC3
+     ;-----------------------------------------------------
+     BCF   PORTC,RC4
+     MOVF  Consult2,w
+     CALL  TO_7SEG
+     MOVWF PORTD
+     CALL  DELAY_3ms
+     BSF   PORTC,RC4
+     ;-----------------------------------------------------
+     BCF   PORTC,RC5
+     MOVF  Consult1,w
+     CALL  TO_7SEG
+     MOVWF PORTD
+     CALL  DELAY_3ms
+     BSF   PORTC,RC5
      
      GOTO  State_Decision
      
@@ -249,54 +345,58 @@ Display_Clock
      BSF   PORTC,RC5
      
      GOTO State_Decision
-      
+
+;----------------------RUTINA DISPLAY ADC/SENSOR DE TEMP----------------------    
+  
+Display_ADC
+    
+    BANKSEL PORTC
+    BCF   PORTC,RC0
+    BANKSEL ADRESL
+    MOVF  Digit4,w
+    CALL  TO_7SEG
+    BANKSEL PORTD
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC0
+     ;-----------------------------------------------------
+    BANKSEL PORTC
+    BCF   PORTC,RC1
+    BANKSEL ADRESL
+    MOVF  Digit3,w
+    CALL  TO_7SEG
+    BANKSEL PORTD
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC1
+     ;-----------------------------------------------------
+    BANKSEL PORTC
+    BCF   PORTC,RC2
+    BANKSEL ADRESL
+    MOVF  Digit2,w
+    CALL  TO_7SEG
+    BANKSEL PORTD
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC2
+    ;-----------------------------------------------------
+    BANKSEL PORTC
+    BCF   PORTC,RC3
+    BANKSEL ADRESL
+    MOVF  Digit1,w
+    CALL  TO_7SEG
+    BANKSEL PORTD
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC3
+    
+    GOTO State_Decision
+    
 ;----------------------*Fin programa Principal*--------------------------------
+    	
      
-      ORG 0x00F0
-TO_7SEG
-     ADDWF   PCL,f
-     RETLW B'10111111' ;0
-     RETLW B'10000110'
-     RETLW B'11011011'
-     RETLW B'11001111'
-     RETLW B'11100110'         
-     RETLW B'11101101'
-     RETLW B'11111101'
-     RETLW B'10000111'
-     RETLW B'11111111'
-     RETLW B'11100111' ;9
-     RETLW B'11110011' ;P
-     RETLW B'11110111' ;A
-     RETLW B'11111001' ;E
-     
-;-----------------------------------------------------------------------------
-     ORG  0x0100
-DELAY_3ms
-        MOVLW	.4		
-        MOVWF	COUNTER2			
-    L4  
-	MOVLW	.255
-	MOVWF	COUNTER1
-    L3  
-	DECFSZ	COUNTER1, F	
-	GOTO	L3	
-	DECFSZ	COUNTER2, F	
-	GOTO	L4
-	RETURN
-;----------------------------------------------------------------------------	
-	ORG 0x0110
-Sampling_Delay
-	
-	MOVLW	.10
-	MOVWF	COUNTERADC
-    LOOP  
-	DECFSZ	COUNTERADC, F	
-	GOTO	LOOP
-	RETURN
-	
-     
-;---------------------------------------------------------------------------	
-     ORG 0x0120
+;------------------RUTINA DE SERVICIO A LAS INTERRUPCIONES--------------------	
+     ORG 0x0130
 INTERRUPT
     
 ; Guardado del contexto
@@ -329,7 +429,7 @@ END_INTERRUPT
 ;---------------------SUBRUTINA INTERRUPCIÓN INT/RB0-----------------------------
       
     ;Se habilitan TMR0 Y TMR1
-    ORG 0x0136
+    ORG 0x0150
 INT_ISR
     MOVLW   .1
     MOVWF   STATE
@@ -347,7 +447,7 @@ INT_ISR
     GOTO    END_INTERRUPT
     
 ;---------------------SUBRUTINA INTERRUPCIÓN PORTB-----------------------------    
-    ORG 0x0145
+    ORG 0x0160
 PortB_ISR
     
     BANKSEL PORTA
@@ -453,10 +553,8 @@ PortB_ISR_END
     GOTO END_INTERRUPT
     
     
-    
-    
 ;------------------------SUBRUTINA INTERRUPCIÓN ADC----------------------------
-    ORG 0x01B0
+    ORG 0x01C0
 ADC_ISR
     BANKSEL ADRESL
     MOVF    ADRESL,W
@@ -546,14 +644,23 @@ EQUALS_3
     MOVWF   STATE
     BANKSEL ADCON0
     BCF     ADCON0,ADON            ;Se deshabilita ADC
+    BANKSEL PORTA
+    INCF    Patient3,F
+    
+    MOVF    Second2,w
+    MOVWF   Consult3
+    MOVF    Second1,w
+    MOVWF   Consult2
+    MOVF    Minute2,w
+    MOVWF   Consult1
     
 END_TMR1_ISR    
     BANKSEL PIR1
     BCF     PIR1,TMR1IF
     GOTO    END_INTERRUPT
     
-;------------------------------------------------------------------------------    
-   ORG 0x0240
+;--------------------SUBRUTINA INTERRUPCIÓN TMR0------------------------------
+   ORG 0x024A
 TMR0_ISR
     
     MOVLW .61
@@ -614,53 +721,6 @@ Reset_24hs
 END_TMR0_ISR
     BCF   INTCON,T0IF  
     GOTO  END_INTERRUPT
-
-;----------------------Display ADC-------------------------------------------    
-    ORG 0x0270
-Display_ADC
-    
-    BANKSEL PORTC
-    BCF   PORTC,RC0
-    BANKSEL ADRESL
-    MOVF  Digit4,w
-    CALL  TO_7SEG
-    BANKSEL PORTD
-    MOVWF PORTD
-    CALL  DELAY_3ms
-    BSF   PORTC,RC0
-     ;-----------------------------------------------------
-    BANKSEL PORTC
-    BCF   PORTC,RC1
-    BANKSEL ADRESL
-    MOVF  Digit3,w
-    CALL  TO_7SEG
-    BANKSEL PORTD
-    MOVWF PORTD
-    CALL  DELAY_3ms
-    BSF   PORTC,RC1
-     ;-----------------------------------------------------
-    BANKSEL PORTC
-    BCF   PORTC,RC2
-    BANKSEL ADRESL
-    MOVF  Digit2,w
-    CALL  TO_7SEG
-    BANKSEL PORTD
-    MOVWF PORTD
-    CALL  DELAY_3ms
-    BSF   PORTC,RC2
-    ;-----------------------------------------------------
-    BANKSEL PORTC
-    BCF   PORTC,RC3
-    BANKSEL ADRESL
-    MOVF  Digit1,w
-    CALL  TO_7SEG
-    BANKSEL PORTD
-    MOVWF PORTD
-    CALL  DELAY_3ms
-    BSF   PORTC,RC3
-    
-    GOTO State_Decision
-    
     
     END
 
