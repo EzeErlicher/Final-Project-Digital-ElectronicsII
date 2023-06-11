@@ -281,94 +281,94 @@ Sampling_Delay
 ;----------------------RUTINA DISPLAY DE LA FECHA-----------------------------     
      ORG   0x0120
 Display_Date     
-     BCF   PORTC,RC0
+     BSF   PORTC,RC0
      MOVF  Year2,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC0
+     BCF   PORTC,RC0
      ;-----------------------------------------------------
-     BCF   PORTC,RC1
+     BSF   PORTC,RC1
      MOVF  Year1,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC1
+     BCF   PORTC,RC1
      ;-----------------------------------------------------
-     BCF   PORTC,RC2
+     BSF   PORTC,RC2
      MOVF  Month2,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC2
+     BCF   PORTC,RC2
      ;-----------------------------------------------------
-     BCF   PORTC,RC3
+     BSF   PORTC,RC3
      MOVF  Month1,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC3
+     BCF   PORTC,RC3
      ;-----------------------------------------------------
-     BCF   PORTC,RC4
+     BSF   PORTC,RC4
      MOVF  Day2,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC4
+     BCF   PORTC,RC4
      ;-----------------------------------------------------
-     BCF   PORTC,RC5
+     BSF   PORTC,RC5
      MOVF  Day1,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC5
+     BCF   PORTC,RC5
      
      GOTO State_Decision
 
 ;----------------------RUTINA DISPLAY PACIENTE/CONSULTORIO--------------------  
 Display_Patient
      
-     BCF   PORTC,RC0
+     BSF   PORTC,RC0
      MOVF  Patient3,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC0
+     BCF   PORTC,RC0
      ;-----------------------------------------------------
-     BCF   PORTC,RC1
+     BSF   PORTC,RC1
      MOVF  Patient2,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC1
+     BCF   PORTC,RC1
      ;-----------------------------------------------------
-     BCF   PORTC,RC2
+     BSF   PORTC,RC2
      MOVF  Patient1,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC2
+     BCF   PORTC,RC2
      ;-----------------------------------------------------
-     BCF   PORTC,RC3
+     BSF   PORTC,RC3
      MOVF  Consult3,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC3
+     BCF   PORTC,RC3
      ;-----------------------------------------------------
-     BCF   PORTC,RC4
+     BSF   PORTC,RC4
      MOVF  Consult2,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC4
+     BCF   PORTC,RC4
      ;-----------------------------------------------------
-     BCF   PORTC,RC5
+     BSF   PORTC,RC5
      MOVF  Consult1,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC5
+     BCF   PORTC,RC5
      
      GOTO  State_Decision
      
@@ -376,47 +376,47 @@ Display_Patient
      
 Display_Clock
      
-     BCF   PORTC,RC0
+     BSF   PORTC,RC0
      MOVF  Second2,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC0
+     BCF   PORTC,RC0
      ;-----------------------------------------------------
-     BCF   PORTC,RC1
+     BSF   PORTC,RC1
      MOVF  Second1,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC1
+     BCF   PORTC,RC1
      ;-----------------------------------------------------
-     BCF   PORTC,RC2
+     BSF   PORTC,RC2
      MOVF  Minute2,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC2
+     BCF   PORTC,RC2
      ;-----------------------------------------------------
-     BCF   PORTC,RC3
+     BSF   PORTC,RC3
      MOVF  Minute1,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC3
+     BCF   PORTC,RC3
      ;-----------------------------------------------------
-     BCF   PORTC,RC4
+     BSF   PORTC,RC4
      MOVF  Hour2,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC4
+     BCF   PORTC,RC4
      ;-----------------------------------------------------
-     BCF   PORTC,RC5
+     BSF   PORTC,RC5
      MOVF  Hour1,w
      CALL  TO_7SEG
      MOVWF PORTD
      CALL  DELAY_3ms
-     BSF   PORTC,RC5
+     BCF   PORTC,RC5
      
      GOTO State_Decision
 
@@ -424,44 +424,44 @@ Display_Clock
 Display_ADC
     
     BANKSEL PORTC
-    BCF   PORTC,RC0
+    BSF   PORTC,RC0
     BANKSEL ADRESL
     MOVF  Digit4,w
     CALL  TO_7SEG
     BANKSEL PORTD
     MOVWF PORTD
     CALL  DELAY_3ms
-    BSF   PORTC,RC0
+    BCF   PORTC,RC0
      ;-----------------------------------------------------
     BANKSEL PORTC
-    BCF   PORTC,RC1
+    BSF   PORTC,RC1
     BANKSEL ADRESL
     MOVF  Digit3,w
     CALL  TO_7SEG
     BANKSEL PORTD
     MOVWF PORTD
     CALL  DELAY_3ms
-    BSF   PORTC,RC1
+    BCF   PORTC,RC1
      ;-----------------------------------------------------
     BANKSEL PORTC
-    BCF   PORTC,RC2
+    BSF   PORTC,RC2
     BANKSEL ADRESL
     MOVF  Digit2,w
     CALL  TO_7SEG
     BANKSEL PORTD
     MOVWF PORTD
     CALL  DELAY_3ms
-    BSF   PORTC,RC2
+    BCF   PORTC,RC2
     ;-----------------------------------------------------
     BANKSEL PORTC
-    BCF   PORTC,RC3
+    BSF   PORTC,RC3
     BANKSEL ADRESL
     MOVF  Digit1,w
     CALL  TO_7SEG
     BANKSEL PORTD
     MOVWF PORTD
     CALL  DELAY_3ms
-    BSF   PORTC,RC3
+    BCF   PORTC,RC3
     
     GOTO State_Decision
     
@@ -469,12 +469,12 @@ Display_ADC
 Transmitting_Data
     
     BANKSEL PORTC
-    BCF   PORTC,RC3
+    BSF   PORTC,RC3
     MOVLW  .12
     CALL  TO_7SEG
     MOVWF PORTD
     CALL  DELAY_3ms
-    BSF   PORTC,RC3
+    BCF   PORTC,RC3
     
     GOTO State_Decision
        
