@@ -34,7 +34,7 @@ STATE        EQU 0x7D
 ; o si corresponde un salto de línea 	
 String_Flag    EQU 0x7E
 ;Variable que indica si el paciente tiene fiebre ("SI" o "NO") 
-Fever_Flag     EQU 0x7F
+YesOrNo    EQU 0x7F
 
 ;Variables para manejo de display ADC/sensor de temperatura	
 ADC_VAL1 EQU 0xA0
@@ -52,7 +52,6 @@ Month1   EQU 0x24
 Months   EQU 0x25
 Year2    EQU 0x26
 Year1    EQU 0x27
-Years    EQU 0x28
 
 ;Variables para manejo consultorio,numero paciente y contador para envío por puerto USART
 Patient3      EQU 0x29
@@ -82,7 +81,7 @@ MAIN
      MOVWF   TRISB
         
      
- ;------CONFIGURACIÓN DE INTERRUPCIONES: TMR0,ADC,PORTB,INT/RB0,TX USART-------
+ ;------CONFIGURACIÓN DE INTERRUPCIONES: TMR0,TMR1,ADC,PORTB,INT/RB0,TX USART
  
      MOVLW   B'11011000'   ;(GIE=1,PEIE=1,T0IE=0,INTE=1,RBIE=1,T0IF=0,INTF=0,RBIF=0)
      MOVWF   INTCON
@@ -164,7 +163,7 @@ MAIN
 ; Inicialiazción Variable de Estado y Variables para transmisión USART
      CLRF  STATE
      CLRF  String_Flag
-     CLRF  Fever_Flag
+     CLRF  YesOrNo
      BANKSEL PORTA
      CLRF  USART_COUNTER
      
@@ -516,7 +515,7 @@ END_INTERRUPT
 TMR1_ISR
     
     BANKSEL TMR1
-    CLRF    TMR1L
+    CLRF    TMR1L                ;Se carga el TMR1 en 0
     CLRF    TMR1H
     DECFSZ  COUNTER_TMR1
     GOTO    END_TMR1_ISR
@@ -561,10 +560,10 @@ EQUALS_2
 EQUALS_3
     INCF    STATE
     BANKSEL ADCON0
-    BCF     ADCON0,ADON            ;Se deshabilita ADC
+    BCF     ADCON0,ADON   ;Se deshabilita ADC
     
     BANKSEL PIE1
-    BSF     PIE1,TXIE
+    BSF     PIE1,TXIE     ;Se habilita la interrupción por TXUSART el transmisor 
     BANKSEL TXREG
     MOVLW   '-'
     MOVWF   TXREG
@@ -573,7 +572,7 @@ EQUALS_3
  EQUALS_4
     
     BANKSEL PIE1
-    BCF     PIE1,TXIE               ;Se deshabilita el transmisor
+    BCF     PIE1,TXIE       ;Se deshabilita la interrupción por TXUSART el transmisor
     MOVLW   .1
     MOVWF   STATE
     
@@ -663,9 +662,9 @@ TMR0_ISR
     SUBWF Hour2,W
     BTFSS STATUS,Z
     GOTO  END_TMR0_ISR
-    CLRF Hour2
-    INCF Hour1
-    GOTO END_TMR0_ISR
+    CLRF  Hour2
+    INCF  Hour1
+    GOTO  END_TMR0_ISR
     
 Reset_24hs
     CLRF Hour2
@@ -694,7 +693,7 @@ PortB_ISR
 RB1_ISR
     INCF  Day2,F
     INCF  Days,F
-    MOVLW .31
+    MOVLW .32
     SUBWF Days,W
     BTFSC STATUS,Z
     GOTO  Reset_Days
@@ -703,14 +702,7 @@ RB1_ISR
     BTFSS STATUS,Z
     GOTO  PortB_ISR_END
     CLRF  Day2
-    
     INCF  Day1,F
-    MOVLW .4
-    SUBWF Day1,W
-    BTFSS STATUS,Z
-    GOTO  PortB_ISR_END
-    CLRF  Day2
-    INCF  Day1
     GOTO  PortB_ISR_END
     
 Reset_Days
@@ -732,14 +724,7 @@ RB2_ISR
     BTFSS STATUS,Z
     GOTO  PortB_ISR_END
     CLRF  Month2
-    
     INCF  Month1,F
-    MOVLW .2
-    SUBWF Month1,W
-    BTFSS STATUS,Z
-    GOTO  PortB_ISR_END
-    CLRF  Month2
-    INCF  Month1
     GOTO  PortB_ISR_END
     
 Reset_Months
@@ -752,11 +737,6 @@ Reset_Months
 ;-----------------------------------------------------------------------------    
 RB3_ISR
     INCF  Year2,F
-    INCF  Years,F
-    MOVLW .100
-    SUBWF Years,W
-    BTFSC STATUS,Z
-    GOTO  Reset_Years
     MOVLW .10
     SUBWF Year2,W
     BTFSS STATUS,Z
@@ -768,15 +748,10 @@ RB3_ISR
     SUBWF Year1,W
     BTFSS STATUS,Z
     GOTO  PortB_ISR_END
-    CLRF  Year2
-    INCF  Year1
-    GOTO  PortB_ISR_END
-    
-Reset_Years
-    CLRF  Year2
     CLRF  Year1
-    CLRF  Years
-    
+    CLRF  Year2
+    GOTO  PortB_ISR_END
+      
     
 PortB_ISR_END
     BANKSEL INTCON
@@ -849,7 +824,7 @@ END_ADC_ISR
 TX_ISR
     
     MOVLW  .0
-    SUBWF  String_Flag,w         ;"PACIENTE:"
+    SUBWF  String_Flag,w         ;"PACIENTE: {numero de paciente}"
     BTFSC  STATUS,Z
     GOTO   Send_String1
     
@@ -859,7 +834,7 @@ TX_ISR
     GOTO   Send_String2
     
     MOVLW  .2
-    SUBWF  String_Flag,w         ;salto de líneas
+    SUBWF  String_Flag,w         ;salto de línea
     BTFSC  STATUS,Z
     GOTO   newLine
       
@@ -933,23 +908,23 @@ FeverOrNotFever
     GOTO    OverEquals38
     
     BANKSEL TXREG
-    MOVF  Fever_Flag,w
+    MOVF  YesOrNo,w
     CALL  Not_Fever   
     MOVWF   TXREG
 L    
-    INCF  Fever_Flag
+    INCF  YesOrNo
     MOVLW .2
-    SUBWF Fever_Flag,w
+    SUBWF YesOrNo,w
     BTFSS STATUS,Z
     GOTO  END_TX_ISR
-    CLRF  Fever_Flag
+    CLRF  YesOrNo
     CLRF  USART_COUNTER
     INCF  String_Flag,f
     GOTO  END_TX_ISR
     
 OverEquals38
     BANKSEL TXREG
-    MOVF  Fever_Flag,w
+    MOVF  YesOrNo,w
     CALL  Fever
     MOVWF TXREG
     GOTO  L 
