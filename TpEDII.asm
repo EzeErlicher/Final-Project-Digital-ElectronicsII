@@ -42,18 +42,26 @@ Digit4   EQU 0xA1
 Digit3   EQU 0xA2
 Digit2   EQU 0xA3
 Digit1   EQU 0xA4
+RefValue EQU 0xA5
+
+;Variables para subrutina configuración temperatura
+DigitReceptionFlag EQU 0xA6
+AUX EQU 0xA7
+RCDigit1 EQU 0xA8
+RCDigit2 EQU 0xA9  
+		   
 
 ;Variables para manejo de la fecha
-Day2     EQU 0x20
-Day1     EQU 0x21
-Days     EQU 0x22
-Month2   EQU 0x23
-Month1   EQU 0x24
-Months   EQU 0x25
-Year2    EQU 0x26
-Year1    EQU 0x27
+Day2     EQU 0x21
+Day1     EQU 0x22
+Days     EQU 0x23
+Month2   EQU 0x24
+Month1   EQU 0x25
+Months   EQU 0x26
+Year2    EQU 0x27
+Year1    EQU 0x28
 
-;Variables para manejo consultorio,numero paciente y contador para envío por puerto USART
+;Variables para manejo consultorio,numero paciente,temperatura y contador para envío por puerto USART
 Patient3      EQU 0x29
 Patient2      EQU 0x2A
 Patient1      EQU 0x2B
@@ -61,6 +69,7 @@ Consult3      EQU 0x2C
 Consult2      EQU 0x2D
 Consult1      EQU 0x2E
 USART_COUNTER EQU 0x2F
+TempDigitFlag EQU 0x30
    
  
      ORG 0x0000
@@ -76,7 +85,8 @@ MAIN
      BSF     ANSEL,0    ;RA0(AN0) como puerto analógico (Puerto que se conecta a sensor temp)
      BANKSEL TRISD
      CLRF    TRISD
-     CLRF    TRISC
+     MOVLW   B'10000000' ;RC7/RX como entrada digital
+     MOVWF   TRISC
      MOVLW   B'0001111' ;RB3-RB0 como entradas digitales
      MOVWF   TRISB
         
@@ -88,8 +98,10 @@ MAIN
      MOVLW   B'00000111'   ; (RBPU=0 PORTB Pull-ups are enabled,INTEDG=0 Descending flank, TMR0 Prescaler=256)
      MOVWF   OPTION_REG
      BANKSEL PIE1
-     BSF     PIE1,ADIE
-     BSF     PIE1,TMR1IE
+     MOVLW   B'01100001'    ; ADIE=1, RCIE=1, TXIE=0,TMRIE=1
+     MOVWF   PIE1          
+     ;BSF     PIE1,ADIE
+     ;BSF     PIE1,TMR1IE
      MOVLW   B'00001111'
      MOVWF   WPUB          ; habilitación de resistencias de PULL-UP en RB3-RB0
      MOVLW   B'00001110'
@@ -105,13 +117,16 @@ MAIN
      MOVLW   B'10000000'   ;(ADFM=1 right justified ,VCFG1=0 Vss,VCFG0=0 Vdd)
      BSF     ADCON1,ADFM
      
-;Configuracion del transmisor UART      
+;Configuracion del transmisor y receptor USART   
+     BANKSEL SPBRG
      MOVLW   .25
      MOVWF   SPBRG
      MOVLW   B'00100100'        ; TXEN=1,SYNC=0, BRGH=1
      MOVWF   TXSTA
      BANKSEL RCSTA
-     BSF     RCSTA,SPEN
+     MOVLW   B'10010000'        ; SPEN=1,CREN=1 
+     MOVWF   RCSTA                    
+     ;BCF     PIR1,RCIF
   
 ; Inicialización de variables: Fecha
      BANKSEL PORTC
@@ -138,11 +153,8 @@ MAIN
      CLRF    PORTC
      MOVLW   .0
      MOVWF   Second2
-     MOVLW   .0
      MOVWF   Second1
-     MOVLW   .0
      MOVWF   Minute2
-     MOVLW   .0
      MOVWF   Minute1
      MOVLW   .8
      MOVWF   Hour2
@@ -161,6 +173,8 @@ MAIN
      CLRF  TMR1H
 
 ; Inicialiazción Variable de Estado y Variables para transmisión USART
+     BANKSEL PIE1
+     CLRF RefValue
      CLRF  STATE
      CLRF  String_Flag
      CLRF  YesOrNo
@@ -173,15 +187,23 @@ State_Decision
      SUBWF STATE,W
      BTFSC STATUS,Z
      GOTO  Display_Date
+     
      MOVLW .1
      SUBWF STATE,W
      BTFSC STATUS,Z
-     GOTO  Display_Patient
+     GOTO  Display_TempConfig
+     
      MOVLW .2
      SUBWF STATE,W
      BTFSC STATUS,Z
-     GOTO  Display_Clock
+     GOTO  Display_Patient
+     
      MOVLW .3
+     SUBWF STATE,W
+     BTFSC STATUS,Z
+     GOTO  Display_Clock
+     
+     MOVLW .4
      SUBWF STATE,W
      BTFSC STATUS,Z 
      GOTO  Display_ADC
@@ -190,7 +212,7 @@ State_Decision
      
 ;--------------------------DELAYS-TABLAS--------------------------------------
      
-          ORG 0x0070
+          ORG 0x0077
 TO_7SEG
      ADDWF   PCL,f
      RETLW B'10111111' ;0
@@ -206,9 +228,10 @@ TO_7SEG
      RETLW B'11110011' ;P
      RETLW B'11110111' ;A
      RETLW B'11111001' ;E
+     RETLW B'00111001' ;C
      
 ;-----------------------------------------------------------------------------
-     ORG 0x007E
+     ORG 0x0086
 String1    
     ADDWF PCL,F
     RETLW 'P' ;0
@@ -222,7 +245,7 @@ String1
     RETLW ':'
     RETLW ' ' ;9
     
-    ORG 0x008A
+    ORG 0x0091
 String2
     ADDWF PCL,F
     RETLW ',' ;0
@@ -234,19 +257,19 @@ String2
     RETLW 'E'
     RETLW ':' ;7
     
-    ORG 0x0094
+    ORG 0x009A
 Fever
     ADDWF PCL,F
     RETLW 'S' 
     RETLW 'I'
  
-    ORG 0x0097
+    ORG 0x009D
 Not_Fever    
     ADDWF PCL,F
     RETLW 'N'
     RETLW 'O' 
 ;-----------------------------------------------------------------------------
-     ORG  0x09C
+     ORG  0x10C
 DELAY_3ms
         MOVLW	.4		
         MOVWF	COUNTER2			
@@ -261,7 +284,7 @@ DELAY_3ms
 	RETURN
 	
 ;-----------------------------------------------------------------------------	
-     	ORG 0x0107
+     	ORG 0x0117
 Sampling_Delay
 	NOP
 	NOP
@@ -278,7 +301,7 @@ Sampling_Delay
 	RETURN
 	  
 ;----------------------RUTINA DISPLAY DE LA FECHA-----------------------------     
-     ORG   0x0120
+     ORG   0x0130
 Display_Date     
      BCF   PORTC,RC0
      MOVF  Year2,w
@@ -323,6 +346,20 @@ Display_Date
      BSF   PORTC,RC5
      
      GOTO State_Decision
+     
+     
+;----------------------RUTINA DISPLAY CONFIGURACIÓN TEMP----------------------
+    
+Display_TempConfig     
+    BANKSEL PORTC
+    BCF   PORTC,RC3
+    MOVLW B'00001101'
+    CALL  TO_7SEG
+    MOVWF PORTD
+    CALL  DELAY_3ms
+    BSF   PORTC,RC3
+    
+    GOTO State_Decision
 
 ;----------------------RUTINA DISPLAY PACIENTE/CONSULTORIO--------------------  
 Display_Patient
@@ -478,7 +515,7 @@ Transmitting_Data
     GOTO State_Decision
        
 ;------------------RUTINA DE SERVICIO A LAS INTERRUPCIONES--------------------	
-     ORG 0x0220
+     ORG 0x0230
 INTERRUPT
     
 ; Guardado del contexto
@@ -487,6 +524,8 @@ INTERRUPT
     MOVWF   STATUS_TEMP
     
     BANKSEL PIR1
+    BTFSC   PIR1,RCIF
+    GOTO    RC_ISR
     BTFSC   PIR1,TMR1IF
     GOTO    TMR1_ISR
     BANKSEL INTCON
@@ -500,6 +539,7 @@ INTERRUPT
     GOTO    ADC_ISR
     BTFSC   PIR1,TXIF
     GOTO    TX_ISR
+    
 
 END_INTERRUPT
 ;Recuperación del contexto y retorno a MAIN
@@ -511,7 +551,7 @@ END_INTERRUPT
     
 ;----------------------SUBRUTINA INTERRUPCIÓN TMR1---------------------------     
     
-    ORG 0x240
+    ORG 0x250
 TMR1_ISR
     
     BANKSEL TMR1
@@ -522,58 +562,61 @@ TMR1_ISR
     MOVLW   .10
     MOVWF   COUNTER_TMR1
     
-    MOVLW   .1
-    SUBWF   STATE,W
-    BTFSC   STATUS,Z
-    GOTO    EQUALS_1
-    MOVLW   .0
-    SUBWF   STATE,W
-    BTFSC   STATUS,Z
-    GOTO    EQUALS_0
     MOVLW   .2
     SUBWF   STATE,W
     BTFSC   STATUS,Z
     GOTO    EQUALS_2
+    MOVLW   .0
+    SUBWF   STATE,W
+    BTFSC   STATUS,Z
+    GOTO    EQUALS_0
     MOVLW   .3
     SUBWF   STATE,W
     BTFSC   STATUS,Z
     GOTO    EQUALS_3
+    MOVLW   .4
+    SUBWF   STATE,W
+    BTFSC   STATUS,Z
     GOTO    EQUALS_4
+    GOTO    EQUALS_5
     
 EQUALS_0
-    MOVLW  .2
+    MOVLW  .3
     MOVWF  STATE
     GOTO   END_TMR1_ISR
 
-EQUALS_1
+EQUALS_2
     CLRF  STATE
     GOTO  END_TMR1_ISR
     
-EQUALS_2
-    INCF    STATE
+EQUALS_3
+    INCF    STATE,F
     BANKSEL ADCON0
     BSF     ADCON0,ADON            ;Se habilita ADC
     CALL    Sampling_Delay
     BSF     ADCON0,GO
     GOTO    END_TMR1_ISR
     
-EQUALS_3
-    INCF    STATE
+EQUALS_4
+    INCF    STATE,F
     BANKSEL ADCON0
     BCF     ADCON0,ADON   ;Se deshabilita ADC
     
     BANKSEL PIE1
     BSF     PIE1,TXIE     ;Se habilita la interrupción por TXUSART el transmisor 
+    ;BSF     PIE1,RCIE
     BANKSEL TXREG
     MOVLW   '-'
     MOVWF   TXREG
     GOTO  END_TMR1_ISR
     
- EQUALS_4
+ EQUALS_5
     
     BANKSEL PIE1
-    BCF     PIE1,TXIE       ;Se deshabilita la interrupción por TXUSART el transmisor
-    MOVLW   .1
+    BCF     PIE1,TXIE       ;Se deshabilita la interrupción por TX USART 
+    BANKSEL RCSTA
+    ;BCF     RCSTA,CREN      
+    MOVLW   .2
     MOVWF   STATE
     
     BANKSEL PORTA                              
@@ -605,6 +648,8 @@ RANDOM
     MOVWF   Consult2               
     MOVF    Minute2,w
     MOVWF   Consult1
+    GOTO    END_TMR1_ISR
+    
  
     
 END_TMR1_ISR    
@@ -613,7 +658,7 @@ END_TMR1_ISR
     GOTO    END_INTERRUPT
     
 ;-------------------SUBRUTINA INTERRUPCIÓN TMR0-CLOCK--------------------------
-   ORG 0x0300
+   ORG 0x0310
 TMR0_ISR
     
     MOVLW .61
@@ -676,7 +721,7 @@ END_TMR0_ISR
     GOTO  END_INTERRUPT
 
 ;---------------------SUBRUTINA INTERRUPCIÓN PORTB-----------------------------    
-    ORG 0x0330
+    ORG 0x0340
 PortB_ISR
     
     BANKSEL PORTA
@@ -762,10 +807,14 @@ PortB_ISR_END
 ;---------------------SUBRUTINA INTERRUPCIÓN INT/RB0---------------------------
       
     ;Se habilitan TMR0 Y TMR1
-    ORG 0x0390
+    ORG 0x0400
 INT_ISR
-    MOVLW   .1
-    MOVWF   STATE
+    
+    INCF    STATE,F
+    MOVLW   .2
+    SUBWF   STATE,W
+    BTFSS   STATUS,Z
+    GOTO    END_RB0_ISR
     
     BANKSEL PIE1
     BSF     PIE1,TMR1IE
@@ -775,20 +824,22 @@ INT_ISR
     BANKSEL INTCON
     BSF     INTCON,T0IE
    
-  
+END_RB0_ISR  
     BCF     INTCON,INTF
     GOTO    END_INTERRUPT
     
     
 ;------------------------SUBRUTINA INTERRUPCIÓN ADC----------------------------
-    ORG 0x0400
+    ORG 0x0410
 ADC_ISR
     BANKSEL ADRESL
     MOVF    ADRESL,W
-    MOVWF   ADC_VAL1
+    MOVWF   ADC_VAL1       
     BCF     STATUS,C
     RRF     ADC_VAL1,F     ;Se divide el valor entregado por el ADC en 2
-    MOVLW   .38            ;para obtener el valor real de temperatura en grados
+    MOVLW   .1
+    SUBWF   ADC_VAL1,F
+    MOVF    RefValue,W     ;para obtener el valor real de temperatura en grados
     SUBWF   ADC_VAL1,W     ;si dicho valor es mayor o igual a 38 el paciente 
     BTFSC   STATUS,C       ;tiene fiebre
     GOTO    FEVER
@@ -819,8 +870,8 @@ END_ADC_ISR
     GOTO    END_INTERRUPT
     
     
-;-----------------SUBRUTINA INTERRUPCIÓN TRANSMISIÓN USART---------------------   
-    ORG 0x0440
+;-----------------SUBRUTINA INTERRUPCIÓN TRANSMISIÓN USART TX------------------   
+    ORG 0x0450
 TX_ISR
     
     MOVLW  .0
@@ -891,7 +942,46 @@ Send_Patient3
     MOVLW  .8
     SUBWF  USART_COUNTER,W
     BTFSC  STATUS,Z
+    GOTO   CheckState
+    GOTO   SendCharacter
+    ;GOTO   FeverOrNotFever
+    
+CheckState
+    MOVLW  .1
+    SUBWF  STATE,W
+    BTFSS  STATUS,Z
     GOTO   FeverOrNotFever
+    
+    BANKSEL PIE1
+    MOVLW   .1
+    SUBWF   TempDigitFlag,w
+    BTFSS   STATUS,Z
+    GOTO    SendTempDigit1
+    GOTO    SendTempDigit2
+
+SendTempDigit1
+    INCF    TempDigitFlag,f
+    MOVF    RCDigit1,w
+    BANKSEL TXREG
+    MOVWF   TXREG
+    GOTO    END_TX_ISR
+    
+SendTempDigit2
+    BANKSEL PIE1
+    MOVF    RCDigit2,w
+    BANKSEL TXREG
+    MOVWF   TXREG
+    NOP
+    NOP
+    NOP
+    BANKSEL PIE1
+    BCF     PIE1,TXIE
+    CLRF    String_Flag
+    BANKSEL PIR1
+    CLRF    USART_COUNTER
+    GOTO    END_TX_ISR
+    
+SendCharacter    
     MOVF   USART_COUNTER,W
     CALL   String2
     MOVWF  TXREG
@@ -901,8 +991,13 @@ Send_Patient3
 ; si tiene fiebre se muestra "SI" caso contrario se envía "NO"
 FeverOrNotFever
     
+    MOVLW  .1
+    SUBWF  STATE,W               ; si el turnero está en el estado 1
+    BTFSC  STATUS,Z              ; (configuración temperatura) se deshabilita TX
+    GOTO   END_TX_ISR_STATE1     ; en END_TX_ISR_STATE y se sale de la interrupción
+    
     BANKSEL ADRESL
-    MOVLW   .38
+    MOVF    RefValue,w
     SUBWF   ADC_VAL1,W
     BTFSC   STATUS,C
     GOTO    OverEquals38
@@ -910,7 +1005,7 @@ FeverOrNotFever
     BANKSEL TXREG
     MOVF  YesOrNo,w
     CALL  Not_Fever   
-    MOVWF   TXREG
+    MOVWF TXREG
 L    
     INCF  YesOrNo
     MOVLW .2
@@ -936,12 +1031,175 @@ newLine
     BCF     PIE1,TXIE 
     CLRF    String_Flag 
 
-        
+END_TX_ISR_STATE1
+    BANKSEL PIE1
+    BCF     PIE1,TXIE 
+    
 END_TX_ISR     
      GOTO END_INTERRUPT
      
-     END
+   
+     ORG 0x510
+RC_ISR
+   
+    BANKSEL PIE1
+    MOVLW   .0
+    SUBWF   DigitReceptionFlag,W
+    BTFSC   STATUS,Z
+    GOTO    First_Digit 
+      
+    MOVLW   .1
+    SUBWF   DigitReceptionFlag,W
+    BTFSC   STATUS,Z
+    GOTO    Second_Digit
+    ;GOTO    Fever_String
+;
+First_Digit
+    BANKSEL RCREG
+    MOVF    RCREG,W
+    BANKSEL PIE1
+    MOVWF   RCDigit1
+    MOVF    RCDigit1,w
     
+    MOVWF   AUX
+    MOVLW   .48
+    SUBWF   AUX,F    
+    SWAPF   AUX,W
+    MOVWF   RefValue
+    INCF    DigitReceptionFlag,F
+    GOTO    END_RC_ISR
+
+Second_Digit
+    
+    BANKSEL PIR1
+    MOVF    RCREG,W
+    BANKSEL PIE1
+    MOVWF   RCDigit2
+    MOVF    RCDigit2,w
+    
+    MOVWF   AUX
+    MOVLW   .48
+    SUBWF   AUX,F    
+    MOVF    AUX,W
+    ADDWF   RefValue,f
+    
+    MOVLW   0x34
+    SUBWF   RefValue,w
+    BTFSC   STATUS,Z
+    GOTO    Temp_34
+    
+    MOVLW   0x35
+    SUBWF   RefValue,w
+    BTFSC   STATUS,Z
+    GOTO    Temp_35
+    
+    MOVLW   0x36
+    SUBWF   RefValue,w
+    BTFSC   STATUS,Z
+    GOTO    Temp_36
+    
+    MOVLW   0x37
+    SUBWF   RefValue,w
+    BTFSC   STATUS,Z
+    GOTO    Temp_37
+    
+    MOVLW   0x38
+    SUBWF   RefValue,w
+    BTFSC   STATUS,Z
+    GOTO    Temp_38
+    
+    MOVLW   0x39
+    SUBWF   RefValue,w
+    BTFSC   STATUS,Z
+    GOTO    Temp_39
+    
+    MOVLW   0x40
+    SUBWF   RefValue,w
+    BTFSC   STATUS,Z
+    GOTO    Temp_40
+    
+    MOVLW   0x41
+    SUBWF   RefValue,w
+    BTFSC   STATUS,Z
+    GOTO    Temp_41
+    
+    MOVLW  .38
+    MOVWF  RefValue
+    MOVLW  B'00110011';3(ASCII)  ; En caso de que se inserte un valor erróneo,       
+    MOVWF  RCDigit1              ; se setea la temperatura por defecto en 38°C
+    MOVLW  B'00111000';8(ASCII)                  
+    MOVWF  RCDigit2
+    GOTO   Enable_Transmitter
+    
+Temp_34
+    MOVLW  .34
+    MOVWF  RefValue
+    GOTO   Enable_Transmitter  
+Temp_35
+    MOVLW  .35
+    MOVWF  RefValue
+    GOTO   Enable_Transmitter
+Temp_36
+    MOVLW  .36
+    MOVWF  RefValue
+    GOTO   Enable_Transmitter
+Temp_37
+    MOVLW  .37
+    MOVWF  RefValue
+    GOTO   Enable_Transmitter    
+Temp_38
+    MOVLW  .38
+    MOVWF  RefValue
+    GOTO   Enable_Transmitter    
+Temp_39
+    MOVLW  .39
+    MOVWF  RefValue
+    GOTO   Enable_Transmitter
+Temp_40
+    MOVLW  .40
+    MOVWF  RefValue
+    GOTO   Enable_Transmitter
+Temp_41
+    MOVLW  .41
+    MOVWF  RefValue
+   
+    
+Enable_Transmitter
+    INCF    DigitReceptionFlag,F
+    INCF    String_Flag
+    
+    BANKSEL RCSTA
+    BCF     RCSTA,CREN
+    BANKSEL PIE1
+    BSF     PIE1,TXIE
+    BANKSEL TXREG
+    ;MOVF    RCDigit1,W
+    MOVLW   " "   
+    MOVWF   TXREG
+    ;BANKSEL RCSTA
+    ;BSF     RCSTA,CREN
+;    GOTO    END_RC_ISR
+    
+;Fever_String 
+;    
+;    BANKSEL RCREG
+;    MOVF    RCREG,W
+;    BANKSEL PIE1
+;    BSF     PIE1,TXIE
+;    
+;    BANKSEL TXREG
+;    ;MOVF    RCDigit1,W
+;    ;MOVLW   "R"   
+;    MOVWF   TXREG
+;    NOP
+    
+END_RC_ISR    
+    BANKSEL PIR1
+    BCF     PIR1,RCIF
+    ;BANKSEL PIE1
+    ;BCF     PIE1,TXIE
+    GOTO END_INTERRUPT
+    END
 
 ;------------------------------------------------------------------------------
     
