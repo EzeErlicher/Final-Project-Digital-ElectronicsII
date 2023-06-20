@@ -603,8 +603,7 @@ EQUALS_4
     BCF     ADCON0,ADON   ;Se deshabilita ADC
     
     BANKSEL PIE1
-    BSF     PIE1,TXIE     ;Se habilita la interrupción por TXUSART el transmisor 
-    ;BSF     PIE1,RCIE
+    BSF     PIE1,TXIE     ;Se habilita la interrupción por TXUSART  
     BANKSEL TXREG
     MOVLW   '-'
     MOVWF   TXREG
@@ -614,8 +613,7 @@ EQUALS_4
     
     BANKSEL PIE1
     BCF     PIE1,TXIE       ;Se deshabilita la interrupción por TX USART 
-    BANKSEL RCSTA
-    ;BCF     RCSTA,CREN      
+    BANKSEL RCSTA     
     MOVLW   .2
     MOVWF   STATE
     
@@ -944,7 +942,7 @@ Send_Patient3
     BTFSC  STATUS,Z
     GOTO   CheckState
     GOTO   SendCharacter
-    ;GOTO   FeverOrNotFever
+   
     
 CheckState
     MOVLW  .1
@@ -1052,8 +1050,7 @@ RC_ISR
     SUBWF   DigitReceptionFlag,W
     BTFSC   STATUS,Z
     GOTO    Second_Digit
-    ;GOTO    Fever_String
-;
+    
 First_Digit
     BANKSEL RCREG
     MOVF    RCREG,W
@@ -1162,8 +1159,7 @@ Temp_40
 Temp_41
     MOVLW  .41
     MOVWF  RefValue
-   
-    
+      
 Enable_Transmitter
     INCF    DigitReceptionFlag,F
     INCF    String_Flag
@@ -1173,31 +1169,12 @@ Enable_Transmitter
     BANKSEL PIE1
     BSF     PIE1,TXIE
     BANKSEL TXREG
-    ;MOVF    RCDigit1,W
     MOVLW   " "   
     MOVWF   TXREG
-    ;BANKSEL RCSTA
-    ;BSF     RCSTA,CREN
-;    GOTO    END_RC_ISR
-    
-;Fever_String 
-;    
-;    BANKSEL RCREG
-;    MOVF    RCREG,W
-;    BANKSEL PIE1
-;    BSF     PIE1,TXIE
-;    
-;    BANKSEL TXREG
-;    ;MOVF    RCDigit1,W
-;    ;MOVLW   "R"   
-;    MOVWF   TXREG
-;    NOP
-    
+ 
 END_RC_ISR    
     BANKSEL PIR1
     BCF     PIR1,RCIF
-    ;BANKSEL PIE1
-    ;BCF     PIE1,TXIE
     GOTO END_INTERRUPT
     END
 
