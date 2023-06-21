@@ -540,7 +540,6 @@ INTERRUPT
     BTFSC   PIR1,TXIF
     GOTO    TX_ISR
     
-
 END_INTERRUPT
 ;Recuperación del contexto y retorno a MAIN
     SWAPF STATUS_TEMP,W
@@ -943,18 +942,17 @@ Send_Patient3
     GOTO   CheckState
     GOTO   SendCharacter
    
-    
 CheckState
     MOVLW  .1
     SUBWF  STATE,W
-    BTFSS  STATUS,Z
+    BTFSS  STATUS,Z             ;Se chequea si el turnero está en el estado 1
     GOTO   FeverOrNotFever
     
     BANKSEL PIE1
     MOVLW   .1
-    SUBWF   TempDigitFlag,w
-    BTFSS   STATUS,Z
-    GOTO    SendTempDigit1
+    SUBWF   TempDigitFlag,w    ;En caso de que este en el estado 1 se envían
+    BTFSS   STATUS,Z           ; los 2 caracteres correspondientes a la temperatura
+    GOTO    SendTempDigit1     ; configurada
     GOTO    SendTempDigit2
 
 SendTempDigit1
@@ -1060,8 +1058,8 @@ First_Digit
     
     MOVWF   AUX
     MOVLW   .48
-    SUBWF   AUX,F    
-    SWAPF   AUX,W
+    SUBWF   AUX,F                   ; Conversión ASCII-->Binario del primer dígito
+    SWAPF   AUX,W                   ; para almacenarlo en RefValue
     MOVWF   RefValue
     INCF    DigitReceptionFlag,F
     GOTO    END_RC_ISR
@@ -1075,11 +1073,12 @@ Second_Digit
     MOVF    RCDigit2,w
     
     MOVWF   AUX
-    MOVLW   .48
-    SUBWF   AUX,F    
-    MOVF    AUX,W
+    MOVLW   .48                    ; Conversión ASCII-->Binario del segundo dígito
+    SUBWF   AUX,F                  ; para almacenarlo en RefValue
+    MOVF    AUX,W              
     ADDWF   RefValue,f
     
+; Según el valor obtenido en hexadecimal, se hace la conversión correspondiente a decimal    
     MOVLW   0x34
     SUBWF   RefValue,w
     BTFSC   STATUS,Z
